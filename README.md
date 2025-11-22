@@ -5,7 +5,7 @@ Collection of my CTF challenges and penetration testing writeups.
 ## 📚 Platforms
 
 ### HackTheBox
-- [Room77-Web-Exploit-Basics](./htb/web-exploit-basics)
+- [Room77-Web-Exploit-Basics](./htb/web-exploit-basics/htb_writeup_exploitation.md)
 
 ### TryHackMe
 - Coming soon...
