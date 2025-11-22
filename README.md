@@ -11,7 +11,7 @@ Collection of my CTF challenges and penetration testing writeups.
 - Coming soon...
 
 ### CTF Competitions
-- Coming soon...
+- [CTF Star Hack 2025](./ctf/starhack2k25)
 
 ## 🛠️ Tools & Techniques
 
