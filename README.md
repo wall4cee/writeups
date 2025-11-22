@@ -5,7 +5,7 @@ Collection of my CTF challenges and penetration testing writeups.
 ## 📚 Platforms
 
 ### HackTheBox
-- [Example Machine](./htb/example-machine)
+- [Example Machine](./htb/web-exploit-basics)
 
 ### TryHackMe
 - Coming soon...
