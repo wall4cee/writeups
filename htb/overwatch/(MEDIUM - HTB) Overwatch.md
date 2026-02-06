@@ -11,7 +11,7 @@ La première étape consiste à cartographier la surface d'attaque, je ne sais p
 
 **Commande Nmap :**
 
-![](images/Copie d'écran_20260206_214028.png)
+![](images/scan_nmap.png)
 Après un scan complet des ports, je me retrouve face à un environnement très verbeux. La présence des ports **53 (DNS), 88 (Kerberos), 389 (LDAP)** et **445 (SMB)** confirme sans aucun doute que nous sommes face à un **Contrôleur de Domaine (Active Directory)** Windows.
 
 En parcourant la liste, la plupart des ports sont standards pour un AD. Cependant, le port **6520/tcp** marqué comme `unknown` attire mon attention. Il ne correspond à aucun service Windows standard (qui se trouvent généralement dans les ports dynamiques RPC hauts, 49xxx). C'est une anomalie qu'il faudra creuser, car cela ressemble à un service déplacé manuellement par un administrateur.
@@ -21,11 +21,11 @@ En parcourant la liste, la plupart des ports sont standards pour un AD. Cependan
 
 Avant de m'attaquer au port exotique 6520, je décide de vérifier les classiques. Le port **445 (SMB)** est souvent une mine d'or sur les machines Windows. J'ai donc lancé une énumération des partages (avec `smbclient`) pour voir si l'accès anonyme ou invité était permis
 
-![](images/Copie d'écran_20260205_173253.png)
+![](images/smb.png)
 
 Bingo ! J'ai découvert un partage non standard nommé `software$` qui était accessible. À l'intérieur, j'ai trouvé `overwatch.exe` et `overwatch.exe.config` que j'ai immédiatement exfiltrés pour analyse locale.
 
-![](images/Pasted image 20260206220044.png))
+![](images/smb_lists.png))
 
 Une fois les deux exécutables exfiltrés sur ma machine locale, je passe à l'analyse. Plutôt que de risquer une exécution, j'utilise l'utilitaire strings pour extraire les chaînes de caractères imprimables et voir si des informations sensibles ont été codées en dur.
 
@@ -33,7 +33,7 @@ Le premier fichier `overwatch.exe.config` ne donne rien de concluant pour le mom
 
 On utilise l'option `-el` pour lire l'Unicode Windows.
 
-![](images/Copie d'écran_20260205_173518.png)
+![](images/strings_el.png)
 
 Credentials : `sqlsvc:TI0LKcfHzZw1Vv`
 
@@ -52,21 +52,21 @@ Malheureusement, la tentative échoue. L'utilisateur récupéré ne semble pas f
 
 Je change donc de stratégie. Je me rappelle que le scan initial montrait un service MSSQL déporté sur le port 6520. Puisque les identifiants proviennent d'un exécutable (probablement une application cliente de base de données), il est très probable que ces accès soient destinés au serveur SQL.
 
-![](images/Copie d'écran_20260205_172454.png)
+![](images/mssql_user1.png)
 
 Une fois connecté au service MSSQL sur le port 6520, ma priorité est d'évaluer mes droits pour voir si je peux activer `xp_cmdshell`. La commande `SELECT SYSTEM_USER` m'indique que je suis connecté avec le compte de service `OVERWATCH\sqlsvc`.
 
 J'espère un instant être administrateur, mais la commande `SELECT IS_SRVROLEMEMBER('sysadmin')` me renvoie un triste 0, confirmant que je n'ai pas les privilèges élevés nécessaires. Une vérification plus fine via `fn_my_permissions` montre que je suis cantonné aux droits basiques : `CONNECT SQL` et `VIEW ANY DATABASE`.
 
-![](images/Copie d'écran_20260205_172547.png)
+![](images/sql_user.png)
 
 Je profite de ce droit de lecture pour lister les bases de données. Outre les bases systèmes (master, tempdb, etc.), je note la présence d'une base spécifique nommée overwatch. Cependant, sans droits d'exécution système, je suis dans une impasse locale.
 
-![](images/Copie d'écran_20260205_172738.png)
+![](images/sql_tables.png)
 
 Je cherche alors des ponts vers d'autres machines (Mouvement Latéral). J'exécute la procédure stockée `EXEC sp_linkedservers` pour voir si ce serveur SQL communique avec d'autres.
 
-![](images/Copie d'écran_20260205_172616.png)
+![](images/sql_linkedservers.png)
 
 Bingo ! La commande me retourne la présence d'un serveur lié nommé `SQL07` (en plus d'une instance locale `S200401\SQLEXPRESS`). C'est ma nouvelle cible pour tenter de m'échapper de ce contexte restreint.
 
@@ -80,13 +80,13 @@ Lorsqu'un système Windows tente d'accéder à un chemin UNC distant, le protoco
 
 Je prépare d'abord **Responder** sur mon interface réseau pour intercepter cette connexion entrante. Ensuite, j'injecte la commande malicieuse via le lien SQL
 
-![](images/Copie d'écran_20260205_171814.png)
+![](images/responder.png)
 
-![](images/Copie d'écran_20260206_222422.png)
+![](images/pwn_server.png)
 
 L'attaque fonctionne instantanément. Le serveur `SQL07` tente de s'authentifier sur mon faux partage réseau. Responder intercepte la communication et, en raison d'une configuration de sécurité faible sur la cible ou le protocole utilisé, capture le mot de passe en clair (Cleartext) de l'utilisateur exécutant le service SQL distant : `sqlmgmt`
 
-![](images/Copie d'écran_20260205_171750.png)
+![](images/creds_cleartext.png)
 
 Credentials : `sqlmgmt:bIhBbzMMnB82yx`
 
@@ -107,13 +107,13 @@ Je me tourne alors vers l'accès distant via **WinRM** (Port 5985), qui avait é
 
 ### Test de connexion Système (WinRM)
 
-![](images/Copie d'écran_20260205_171719.png)
+![](images/evil_winrm1.png)
 
 Bingo ! J'obtiens instantanément un shell PowerShell stable sur la machine.
 
 Je navigue immédiatement dans les répertoires de l'utilisateur pour sécuriser le premier objectif. Le fichier `user.txt` se trouve, comme d'habitude, sur le bureau.
 
-![](images/Copie d'écran_20260205_171655.png)
+![](images/flag_user.png)
 
 ---
 
@@ -131,7 +131,7 @@ Je découvre le dossier **`C:\Software`**. En explorant `C:\Software\Monitoring`
 
 Plutôt que de faire du reverse engineering complexe sur l'exécutable, je décide d'inspecter son fichier de configuration `.config` pour comprendre son comportement. J'utilise la commande `strings` pour en lire le contenu.
 
-![](images/Copie d'écran_20260205_173558.png)
+![](images/strings_config.png)
 
 > _"L'analyse du fichier `overwatch.exe.config` révèle une information critique : l'application expose un service WCF (Windows Communication Foundation) écoutant en local sur le port 8000."_
 
@@ -161,11 +161,11 @@ _Le `;` sert de séparateur de commandes en PowerShell._
 
 > _"Je prépare l'enveloppe SOAP en insérant mon payload dans la balise `<tem:processName>`."_
 
-![](images/Copie d'écran_20260205_171454.png)
+![](images/pwn_xml.png)
 
 J'envoie ensuite cette requête au service local via `curl` (alias de `Invoke-WebRequest` en PowerShell) :
 
-![](images/Copie d'écran_20260205_171522.png)
+![](images/curl_evilwin.png)
 
 > _"Le serveur répond avec un code 200 OK. Bien que le corps de la réponse contienne une erreur (car le processus 'nothing' n'existe pas), cela confirme que ma commande a été traitée."_
 
@@ -175,7 +175,7 @@ Je vérifie immédiatement si l'exploitation a fonctionné en listant les membre
 
 > _"Succès ! L'utilisateur `sqlmgmt` apparaît désormais dans le groupe **Administrators**."_
 
-![](images/Copie d'écran_20260205_171537.png)
+![](images/check_admin.png)
 
 Cependant, sous Windows, l'appartenance à un groupe est définie dans le **Security Token** généré au moment de la connexion (Logon). Même si je suis admin dans la base de données locale, ma session actuelle utilise l'ancien jeton (utilisateur standard). Je ne peux donc pas encore lire le fichier `root.txt`.
 
@@ -185,9 +185,9 @@ Pour régénérer mon jeton avec les nouveaux droits, je dois me déconnecter et
 
 > _"Je ferme ma session Evil-WinRM avec `exit`, puis je me reconnecte immédiatement avec les mêmes identifiants. Cette nouvelle session bénéficie du jeton Administrateur. Je peux enfin accéder au bureau de l'Administrateur et capturer le flag final."_
 
-![](images/Copie d'écran_20260205_171554.png)
+![](images/flag_root.png)
 
-![](images/Copie d'écran_20260205_173849.png)
+![](images/pwned.png)
 
 ## 🎓 Résumé Technique & Leçons Apprises
 
