@@ -1,5 +1,5 @@
 
-![](images/Copie d'écran_20260205_173706.png)
+![](images/room.png)
 
 # 📑 Rapport de Penetration Test : Machine "Overwatch"
 
