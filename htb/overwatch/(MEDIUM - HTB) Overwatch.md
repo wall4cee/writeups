@@ -41,8 +41,8 @@ Credentials : `sqlsvc:TI0LKcfHzZw1Vv`
 
 Nous disposons via une phase précédente de collecte des identifiants :
 
-* **User :** `sqlmgmt`
-* **Pass :** `bIhBbzMMnB82yx`
+* **User :** `sqlsvc`
+* **Pass :** `TI0LKcfHzZw1Vv`
 
 ### Test de connexion Evil Win-RM
 
