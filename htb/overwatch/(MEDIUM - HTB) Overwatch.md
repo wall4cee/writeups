@@ -17,7 +17,7 @@ Après un scan complet des ports, je me retrouve face à un environnement très 
 En parcourant la liste, la plupart des ports sont standards pour un AD. Cependant, le port **6520/tcp** marqué comme `unknown` attire mon attention. Il ne correspond à aucun service Windows standard (qui se trouvent généralement dans les ports dynamiques RPC hauts, 49xxx). C'est une anomalie qu'il faudra creuser, car cela ressemble à un service déplacé manuellement par un administrateur.
 
 ---
-## 2. 🔑 Reconnaissance du port 445 SMB
+## 2. 🔍 Énumération SMB & Analyse Statique
 
 Avant de m'attaquer au port exotique 6520, je décide de vérifier les classiques. Le port **445 (SMB)** est souvent une mine d'or sur les machines Windows. J'ai donc lancé une énumération des partages (avec `smbclient`) pour voir si l'accès anonyme ou invité était permis
 
@@ -37,7 +37,7 @@ On utilise l'option `-el` pour lire l'Unicode Windows.
 
 Credentials : `sqlsvc:TI0LKcfHzZw1Vv`
 
-## 3. 🔑 Accès Initial (Le Pied dans la Porte)
+## 3. 🛠️ Exploitation MSSQL & Mouvement Latéral
 
 Nous disposons via une phase précédente de collecte des identifiants :
 
@@ -70,7 +70,7 @@ Je cherche alors des ponts vers d'autres machines (Mouvement Latéral). J'exécu
 
 Bingo ! La commande me retourne la présence d'un serveur lié nommé `SQL07` (en plus d'une instance locale `S200401\SQLEXPRESS`). C'est ma nouvelle cible pour tenter de m'échapper de ce contexte restreint.
 
-## 4. 🔑 Attaque (Forced Authentication)
+## 4. 🎣 Forced Authentication (Relay / Capture NTLM)
 
 Ayant découvert le serveur lié `SQL07`, j'exploite cette relation de confiance pour effectuer une attaque de type **Forced Authentication**.
 
@@ -90,7 +90,7 @@ L'attaque fonctionne instantanément. Le serveur `SQL07` tente de s'authentifier
 
 Credentials : `sqlmgmt:bIhBbzMMnB82yx`
 
-## 5. 🔑 Accès Initial (Le Pied dans la Porte)
+## 5. 🦶 Accès Initial : Foothold via WinRM
 
 Nous disposons via une phase précédente de collecte des identifiants :
 
@@ -116,6 +116,7 @@ Je navigue immédiatement dans les répertoires de l'utilisateur pour sécuriser
 ![](images/flag_user.png)
 
 ---
+## 6. ⚡ Élévation de Privilèges (PrivEsc) : De User à SYSTEM
 
 #### 1. Reconnaissance Interne & Lien avec le Scan Initial
 
@@ -179,7 +180,7 @@ Je vérifie immédiatement si l'exploitation a fonctionné en listant les membre
 
 Cependant, sous Windows, l'appartenance à un groupe est définie dans le **Security Token** généré au moment de la connexion (Logon). Même si je suis admin dans la base de données locale, ma session actuelle utilise l'ancien jeton (utilisateur standard). Je ne peux donc pas encore lire le fichier `root.txt`.
 
-#### 6. Capture du Flag Root
+## 7. 🚩 Capture du Flag Root
 
 Pour régénérer mon jeton avec les nouveaux droits, je dois me déconnecter et me reconnecter.
 
